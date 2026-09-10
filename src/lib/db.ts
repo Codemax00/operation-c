@@ -2,6 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 
+import { seedDatabase } from './seed';
+
 const DB_PATH = path.join(process.cwd(), 'c_academy.db');
 
 let dbInstance: DatabaseSync | null = null;
@@ -12,6 +14,7 @@ export function getDb(): DatabaseSync {
     dbInstance.exec('PRAGMA journal_mode = WAL;');
     dbInstance.exec('PRAGMA foreign_keys = ON;');
     initSchema(dbInstance);
+    seedDatabase(dbInstance);
   }
   return dbInstance;
 }
@@ -24,6 +27,7 @@ function initSchema(db: DatabaseSync) {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('student', 'teacher')),
+      current_session_id TEXT,
       created_at TEXT NOT NULL
     );
 
@@ -123,4 +127,10 @@ function initSchema(db: DatabaseSync) {
       created_at TEXT NOT NULL
     );
   `);
+
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN current_session_id TEXT;');
+  } catch {
+    // column already exists
+  }
 }

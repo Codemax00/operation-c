@@ -81,14 +81,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user);
         if (data.stats) setStats(data.stats);
       } else {
-        setUser(null);
+        // If previously logged in and now rejected, another device logged in!
+        setUser(prevUser => {
+          if (prevUser && pathname !== '/login' && pathname !== '/teacher') {
+            router.push('/login?reason=concurrent_session');
+          }
+          return null;
+        });
       }
     } catch {
       setUser(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pathname, router]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -105,6 +111,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
+
+  // Periodic heartbeat every 8 seconds to enforce single active device
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      fetchCurrentUser();
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [user, fetchCurrentUser]);
 
   useEffect(() => {
     if (user) {

@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const db = getDb();
-  const days = db.prepare(`
+  const rawDays = db.prepare(`
     SELECT 
       d.*,
       (SELECT count(*) FROM resources r WHERE r.day_id = d.id) as resources_count,
@@ -23,7 +23,14 @@ export async function GET() {
       ) as submission_count
     FROM course_days d
     ORDER BY d.day_number ASC
-  `).all();
+  `).all() as any[];
+
+  const getResources = db.prepare('SELECT id, day_id, title, file_url, resource_type, uploaded_at FROM resources WHERE day_id = ? ORDER BY uploaded_at ASC');
+
+  const days = rawDays.map(d => ({
+    ...d,
+    resources: getResources.all(d.id)
+  }));
 
   return NextResponse.json({ days });
 }

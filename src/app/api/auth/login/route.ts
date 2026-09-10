@@ -1,17 +1,25 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { verifyPassword, signToken } from '@/lib/auth';
+import crypto from 'node:crypto';
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json();
+    const { email, identifier, password, role } = await req.json();
+    const loginId = (identifier || email || '').trim();
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    if (!loginId || !password) {
+      return NextResponse.json({ error: 'Name/Email and password are required' }, { status: 400 });
     }
 
     const db = getDb();
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as {
+    
+    // Find user by either email OR username (case-insensitive)
+    const user = db.prepare(`
+      SELECT * FROM users 
+      WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)
+      LIMIT 1
+    `).get(loginId, loginId) as {
       id: string;
       name: string;
       email: string;
@@ -20,21 +28,38 @@ export async function POST(req: Request) {
     } | undefined;
 
     if (!user || !verifyPassword(password, user.password_hash)) {
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid name/email or password' }, { status: 401 });
     }
+
+    // Optional role check
+    if (role && user.role !== role) {
+      if (role === 'teacher') {
+        return NextResponse.json({ error: 'Access denied: Teacher privileges required' }, { status: 403 });
+      }
+    }
+
+    // Generate fresh session ID to enforce single-device active session
+    const sessionId = crypto.randomUUID();
+    db.prepare('UPDATE users SET current_session_id = ? WHERE id = ?').run(sessionId, user.id);
 
     const sessionData = {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      sessionId
     };
 
     const token = signToken(sessionData);
 
     const response = NextResponse.json({
       success: true,
-      user: sessionData
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
     });
 
     response.cookies.set('c_academy_session', token, {

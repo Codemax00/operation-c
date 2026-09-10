@@ -34,8 +34,8 @@ export const CURRICULUM_DAYS = [
   { day: 30, title: 'C Programming Revision + Mini Project', desc: 'Comprehensive review, building a Student Management System console application in C.' }
 ];
 
-export function seedDatabase() {
-  const db = getDb();
+export function seedDatabase(customDb?: any) {
+  const db = customDb || getDb();
 
   // Check if already seeded
   const userCountRow = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
@@ -44,7 +44,7 @@ export function seedDatabase() {
   }
 
   // 1. Seed Users
-  const teacherPass = hashPassword('teacher123');
+  const teacherPass = hashPassword('umesh5433x');
   const studentPass = hashPassword('student123');
 
   const insertUser = db.prepare(`
@@ -52,8 +52,8 @@ export function seedDatabase() {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  insertUser.run('usr-teacher-1', 'Prof. Alan Mitchell', 'teacher@academy.c', teacherPass, 'teacher', new Date().toISOString());
-  insertUser.run('usr-student-1', 'Alex Johnson', 'student@academy.c', studentPass, 'student', new Date().toISOString());
+  insertUser.run('usr-teacher-umesh', 'umesh rocky', 'umeshrocky@academy.c', teacherPass, 'teacher', new Date().toISOString());
+  insertUser.run('usr-student-init', 'Student', 'student@academy.c', studentPass, 'student', new Date().toISOString());
 
   // 2. Seed All 30 Days
   const insertDay = db.prepare(`

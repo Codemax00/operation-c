@@ -6,7 +6,7 @@ export async function GET() {
   const user = await getCurrentUser();
   const db = getDb();
 
-  const days = db.prepare(`
+  const days = (await db.prepare(`
     SELECT 
       d.*,
       (SELECT count(*) FROM resources r WHERE r.day_id = d.id) as resources_count,
@@ -14,21 +14,21 @@ export async function GET() {
       (SELECT count(*) FROM homework_questions hq WHERE hq.day_id = d.id AND hq.published = 1) as homework_count
     FROM course_days d
     ORDER BY d.day_number ASC
-  `).all() as any[];
+  `).all()) as any[];
 
   let lessonProgressMap = new Map<string, number>();
   let practiceProgressMap = new Map<string, number>();
   let homeworkStatusMap = new Map<string, string>();
 
   if (user && user.role === 'student') {
-    const lpRows = db.prepare('SELECT day_id, completed FROM lesson_progress WHERE student_id = ?').all(user.id) as any[];
+    const lpRows = (await db.prepare('SELECT day_id, completed FROM lesson_progress WHERE student_id = ?').all(user.id)) as any[];
     lpRows.forEach((r) => lessonProgressMap.set(r.day_id, r.completed));
 
-    const ppRows = db.prepare('SELECT day_id, completed FROM practice_progress WHERE student_id = ?').all(user.id) as any[];
+    const ppRows = (await db.prepare('SELECT day_id, completed FROM practice_progress WHERE student_id = ?').all(user.id)) as any[];
     ppRows.forEach((r) => practiceProgressMap.set(r.day_id, r.completed));
 
     // Get homework submission statuses for each day
-    const hwRows = db.prepare(`
+    const hwRows = (await db.prepare(`
       SELECT 
         hq.day_id,
         s.status as sub_status,
@@ -37,7 +37,7 @@ export async function GET() {
       LEFT JOIN homework_submissions s ON s.homework_question_id = hq.id AND s.student_id = ?
       LEFT JOIN homework_grades g ON g.submission_id = s.id
       WHERE hq.published = 1
-    `).all(user.id) as any[];
+    `).all(user.id)) as any[];
 
     hwRows.forEach((r) => {
       if (r.stars !== null && r.stars !== undefined) {
@@ -67,17 +67,17 @@ export async function GET() {
   const completedLessons = Array.from(lessonProgressMap.values()).filter(v => v === 1).length;
   const completedPractice = Array.from(practiceProgressMap.values()).filter(v => v === 1).length;
 
-  const totalPublishedHwRow = db.prepare('SELECT count(*) as count FROM homework_questions WHERE published = 1').get() as { count: number };
+  const totalPublishedHwRow = (await db.prepare('SELECT count(*) as count FROM homework_questions WHERE published = 1').get()) as { count: number } | null;
   const totalPublishedHw = totalPublishedHwRow?.count || 1;
 
   let gradedHwCount = 0;
   if (user && user.role === 'student') {
-    const gradedHwRow = db.prepare(`
+    const gradedHwRow = (await db.prepare(`
       SELECT count(DISTINCT s.homework_question_id) as count
       FROM homework_submissions s
       JOIN homework_grades g ON s.id = g.submission_id
       WHERE s.student_id = ? AND g.stars > 0
-    `).get(user.id) as { count: number };
+    `).get(user.id)) as { count: number } | null;
     gradedHwCount = gradedHwRow?.count || 0;
   }
 

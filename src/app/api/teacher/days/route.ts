@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const db = getDb();
-  const rawDays = db.prepare(`
+  const rawDays = (await db.prepare(`
     SELECT 
       d.*,
       (SELECT count(*) FROM resources r WHERE r.day_id = d.id) as resources_count,
@@ -23,14 +23,14 @@ export async function GET() {
       ) as submission_count
     FROM course_days d
     ORDER BY d.day_number ASC
-  `).all() as any[];
+  `).all()) as any[];
 
-  const getResources = db.prepare('SELECT id, day_id, title, file_url, resource_type, uploaded_at FROM resources WHERE day_id = ? ORDER BY uploaded_at ASC');
-
-  const days = rawDays.map(d => ({
-    ...d,
-    resources: getResources.all(d.id)
-  }));
+  const days = await Promise.all(
+    rawDays.map(async (d) => ({
+      ...d,
+      resources: (await db.prepare('SELECT id, day_id, title, file_url, resource_type, uploaded_at FROM resources WHERE day_id = ? ORDER BY uploaded_at ASC').all(d.id))
+    }))
+  );
 
   return NextResponse.json({ days });
 }
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     const db = getDb();
-    const day = db.prepare('SELECT * FROM course_days WHERE id = ?').get(dayId) as any;
+    const day = (await db.prepare('SELECT * FROM course_days WHERE id = ?').get(dayId)) as any;
     if (!day) {
       return NextResponse.json({ error: 'Day not found' }, { status: 404 });
     }
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const updatedDesc = description !== undefined ? description : day.description;
     const updatedPublished = published !== undefined ? (published ? 1 : 0) : day.published;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE course_days 
       SET title = ?, description = ?, published = ?
       WHERE id = ?
@@ -66,15 +66,15 @@ export async function POST(req: Request) {
 
     // If publishing, send notification to students
     if (updatedPublished === 1 && day.published === 0) {
-      const students = db.prepare("SELECT id FROM users WHERE role = 'student'").all() as any[];
+      const students = (await db.prepare("SELECT id FROM users WHERE role = 'student'").all()) as any[];
       const insertNotif = db.prepare(`
         INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
         VALUES (?, ?, ?, ?, 'resource', 0, ?)
       `);
       const now = new Date().toISOString();
-      students.forEach(s => {
-        insertNotif.run(crypto.randomUUID(), s.id, `Day ${day.day_number} Content Available`, `Day ${day.day_number}: ${updatedTitle} is now open for learning!`, now);
-      });
+      for (const s of students) {
+        await insertNotif.run(crypto.randomUUID(), s.id, `Day ${day.day_number} Content Available`, `Day ${day.day_number}: ${updatedTitle} is now open for learning!`, now);
+      }
     }
 
     return NextResponse.json({ success: true, message: 'Day updated successfully' });

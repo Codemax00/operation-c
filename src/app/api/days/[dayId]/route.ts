@@ -8,29 +8,29 @@ export async function GET(req: Request, context: { params: Promise<{ dayId: stri
   const db = getDb();
 
   // Find day by id or day_number
-  let day = db.prepare('SELECT * FROM course_days WHERE id = ? OR day_number = ?').get(dayId, isNaN(Number(dayId)) ? -1 : Number(dayId)) as any;
+  let day = (await db.prepare('SELECT * FROM course_days WHERE id = ? OR day_number = ?').get(dayId, isNaN(Number(dayId)) ? -1 : Number(dayId))) as any;
   if (!day) {
     return NextResponse.json({ error: 'Day not found' }, { status: 404 });
   }
 
-  const resources = db.prepare('SELECT * FROM resources WHERE day_id = ? ORDER BY uploaded_at ASC').all(day.id) as any[];
-  const solvedQuestions = db.prepare('SELECT * FROM solved_questions WHERE day_id = ? ORDER BY order_index ASC').all(day.id) as any[];
-  const homeworkQuestions = db.prepare('SELECT * FROM homework_questions WHERE day_id = ? AND published = 1 ORDER BY created_at ASC').all(day.id) as any[];
+  const resources = (await db.prepare('SELECT * FROM resources WHERE day_id = ? ORDER BY uploaded_at ASC').all(day.id)) as any[];
+  const solvedQuestions = (await db.prepare('SELECT * FROM solved_questions WHERE day_id = ? ORDER BY order_index ASC').all(day.id)) as any[];
+  const homeworkQuestions = (await db.prepare('SELECT * FROM homework_questions WHERE day_id = ? AND published = 1 ORDER BY created_at ASC').all(day.id)) as any[];
 
   let lessonCompleted = false;
   let practiceCompleted = false;
   let submissionsMap: Record<string, any> = {};
 
   if (user && user.role === 'student') {
-    const lp = db.prepare('SELECT completed FROM lesson_progress WHERE student_id = ? AND day_id = ?').get(user.id, day.id) as any;
+    const lp = (await db.prepare('SELECT completed FROM lesson_progress WHERE student_id = ? AND day_id = ?').get(user.id, day.id)) as any;
     if (lp && lp.completed === 1) lessonCompleted = true;
 
-    const pp = db.prepare('SELECT completed FROM practice_progress WHERE student_id = ? AND day_id = ?').get(user.id, day.id) as any;
+    const pp = (await db.prepare('SELECT completed FROM practice_progress WHERE student_id = ? AND day_id = ?').get(user.id, day.id)) as any;
     if (pp && pp.completed === 1) practiceCompleted = true;
 
     // Get submissions for each homework question
     for (const hw of homeworkQuestions) {
-      const sub = db.prepare(`
+      const sub = await db.prepare(`
         SELECT 
           s.*,
           g.stars,

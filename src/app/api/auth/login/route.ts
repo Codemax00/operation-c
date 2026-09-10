@@ -15,17 +15,17 @@ export async function POST(req: Request) {
     const db = getDb();
     
     // Find user by either email OR username (case-insensitive)
-    const user = db.prepare(`
+    const user = (await db.prepare(`
       SELECT * FROM users 
       WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)
       LIMIT 1
-    `).get(loginId, loginId) as {
+    `).get(loginId, loginId)) as {
       id: string;
       name: string;
       email: string;
       password_hash: string;
       role: 'student' | 'teacher';
-    } | undefined;
+    } | null;
 
     if (!user || !verifyPassword(password, user.password_hash)) {
       return NextResponse.json({ error: 'Invalid name/email or password' }, { status: 401 });
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     // Generate fresh session ID to enforce single-device active session
     const sessionId = crypto.randomUUID();
-    db.prepare('UPDATE users SET current_session_id = ? WHERE id = ?').run(sessionId, user.id);
+    await db.prepare('UPDATE users SET current_session_id = ? WHERE id = ?').run(sessionId, user.id);
 
     const sessionData = {
       id: user.id,

@@ -9,13 +9,13 @@ export async function GET() {
   }
 
   const db = getDb();
-  const sentNotifications = db.prepare(`
+  const sentNotifications = (await db.prepare(`
     SELECT n.*, u.name as student_name, u.email as student_email
     FROM notifications n
     LEFT JOIN users u ON n.user_id = u.id
     ORDER BY n.created_at DESC
     LIMIT 50
-  `).all();
+  `).all()) as any[];
 
   return NextResponse.json({ notifications: sentNotifications });
 }
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const createdAt = new Date().toISOString();
     const targetUserId = studentId && studentId !== 'all' ? studentId : null;
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?)
     `).run(id, targetUserId, title.trim(), message.trim(), type, createdAt);
@@ -68,7 +68,7 @@ export async function DELETE(req: Request) {
     }
 
     const db = getDb();
-    db.prepare('DELETE FROM notifications WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM notifications WHERE id = ?').run(id);
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

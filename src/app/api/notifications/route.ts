@@ -9,12 +9,12 @@ export async function GET() {
   }
 
   const db = getDb();
-  const notifications = db.prepare(`
+  const notifications = (await db.prepare(`
     SELECT * FROM notifications 
     WHERE user_id = ? OR user_id IS NULL
     ORDER BY created_at DESC 
     LIMIT 20
-  `).all(user.id);
+  `).all(user.id)) as any[];
 
   return NextResponse.json({ notifications });
 }
@@ -29,9 +29,9 @@ export async function POST(req: Request) {
     const { notifId } = await req.json();
     const db = getDb();
     if (notifId) {
-      db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND (user_id = ? OR user_id IS NULL)').run(notifId, user.id);
+      await db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND (user_id = ? OR user_id IS NULL)').run(notifId, user.id);
     } else {
-      db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? OR user_id IS NULL').run(user.id);
+      await db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? OR user_id IS NULL').run(user.id);
     }
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

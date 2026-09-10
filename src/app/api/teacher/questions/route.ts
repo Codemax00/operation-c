@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     if (type === 'solved') {
       if (id) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE solved_questions 
           SET question = ?, explanation = ?, solution_code = ?, expected_output = ?
           WHERE id = ?
@@ -29,16 +29,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, message: 'Solved question updated' });
       } else {
         const newId = `sq-${Date.now()}`;
-        const orderIndexRow = db.prepare('SELECT COALESCE(MAX(order_index), 0) + 1 as next_idx FROM solved_questions WHERE day_id = ?').get(dayId) as any;
-        db.prepare(`
+        const orderIndexRow = (await db.prepare('SELECT COALESCE(MAX(order_index), 0) + 1 as next_idx FROM solved_questions WHERE day_id = ?').get(dayId)) as any;
+        await db.prepare(`
           INSERT INTO solved_questions (id, day_id, question, explanation, solution_code, expected_output, order_index)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(newId, dayId, question, explanation || '', solutionCode || '', expectedOutput || '', orderIndexRow.next_idx);
+        `).run(newId, dayId, question, explanation || '', solutionCode || '', expectedOutput || '', orderIndexRow?.next_idx || 1);
         return NextResponse.json({ success: true, id: newId, message: 'Solved question created' });
       }
     } else if (type === 'homework') {
       if (id) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE homework_questions
           SET question = ?, starter_code = ?, difficulty = ?, published = ?
           WHERE id = ?
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, message: 'Homework question updated' });
       } else {
         const newId = `hw-${Date.now()}`;
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO homework_questions (id, day_id, question, starter_code, difficulty, published, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).run(newId, dayId, question, starterCode || '', difficulty || 'Easy', published !== undefined ? (published ? 1 : 0) : 1, new Date().toISOString());
@@ -78,9 +78,9 @@ export async function DELETE(req: Request) {
 
     const db = getDb();
     if (type === 'solved') {
-      db.prepare('DELETE FROM solved_questions WHERE id = ?').run(id);
+      await db.prepare('DELETE FROM solved_questions WHERE id = ?').run(id);
     } else if (type === 'homework') {
-      db.prepare('DELETE FROM homework_questions WHERE id = ?').run(id);
+      await db.prepare('DELETE FROM homework_questions WHERE id = ?').run(id);
     }
 
     return NextResponse.json({ success: true });

@@ -1,136 +1,59 @@
-import { DatabaseSync } from 'node:sqlite';
-import path from 'node:path';
-import fs from 'node:fs';
+import { createClient, Client } from '@libsql/client';
 
-import { seedDatabase } from './seed';
+const TURSO_URL = process.env.TURSO_DATABASE_URL || 'libsql://c-academy-codemax00.aws-ap-south-1.turso.io';
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkwNjA4MTIsImlkIjoiMDFhMDhjNTMtNjIwMS03MmVkLTg2YzYtZTM5NzZmNGY2NDAyIiwia2lkIjoiY0hFMUN1b3d0ZkRwUFF0QjR4MUZUQ2xVQ3VXV0tKWm1lU0RjekVock1GQSIsInJpZCI6ImIyNmMyZmNkLTFlNjYtNDU5My04ZGNjLWFhMzFiYzcwZTlkNSJ9.pCWklFpiXa64Dypau6kXLMV69FHUfs_CBwiIBrb3BYmdGuW3Da0HtbrXkhffi38UC1l-Q-a32R8C5JMFiOYSCQ';
 
-const DB_PATH = path.join(process.cwd(), 'c_academy.db');
+let clientInstance: Client | null = null;
 
-let dbInstance: DatabaseSync | null = null;
-
-export function getDb(): DatabaseSync {
-  if (!dbInstance) {
-    dbInstance = new DatabaseSync(DB_PATH);
-    dbInstance.exec('PRAGMA journal_mode = WAL;');
-    dbInstance.exec('PRAGMA foreign_keys = ON;');
-    initSchema(dbInstance);
-    seedDatabase(dbInstance);
+export function getClient(): Client {
+  if (!clientInstance) {
+    clientInstance = createClient({
+      url: TURSO_URL,
+      authToken: TURSO_TOKEN,
+    });
   }
-  return dbInstance;
+  return clientInstance;
 }
 
-function initSchema(db: DatabaseSync) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('student', 'teacher')),
-      current_session_id TEXT,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS course_days (
-      id TEXT PRIMARY KEY,
-      day_number INTEGER UNIQUE NOT NULL CHECK(day_number BETWEEN 1 AND 30),
-      title TEXT NOT NULL,
-      description TEXT,
-      published INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS resources (
-      id TEXT PRIMARY KEY,
-      day_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      file_url TEXT NOT NULL,
-      resource_type TEXT NOT NULL,
-      uploaded_at TEXT NOT NULL,
-      FOREIGN KEY(day_id) REFERENCES course_days(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS solved_questions (
-      id TEXT PRIMARY KEY,
-      day_id TEXT NOT NULL,
-      question TEXT NOT NULL,
-      explanation TEXT,
-      solution_code TEXT NOT NULL,
-      expected_output TEXT,
-      order_index INTEGER DEFAULT 0,
-      FOREIGN KEY(day_id) REFERENCES course_days(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS homework_questions (
-      id TEXT PRIMARY KEY,
-      day_id TEXT NOT NULL,
-      question TEXT NOT NULL,
-      starter_code TEXT,
-      difficulty TEXT DEFAULT 'Easy' CHECK(difficulty IN ('Easy', 'Medium', 'Hard')),
-      published INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY(day_id) REFERENCES course_days(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS lesson_progress (
-      id TEXT PRIMARY KEY,
-      student_id TEXT NOT NULL,
-      day_id TEXT NOT NULL,
-      completed INTEGER NOT NULL DEFAULT 0,
-      completed_at TEXT,
-      UNIQUE(student_id, day_id),
-      FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(day_id) REFERENCES course_days(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS practice_progress (
-      id TEXT PRIMARY KEY,
-      student_id TEXT NOT NULL,
-      day_id TEXT NOT NULL,
-      completed INTEGER NOT NULL DEFAULT 0,
-      completed_at TEXT,
-      UNIQUE(student_id, day_id),
-      FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(day_id) REFERENCES course_days(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS homework_submissions (
-      id TEXT PRIMARY KEY,
-      student_id TEXT NOT NULL,
-      homework_question_id TEXT NOT NULL,
-      code TEXT NOT NULL,
-      output TEXT,
-      compilation_status TEXT NOT NULL CHECK(compilation_status IN ('success', 'error')),
-      submitted_at TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'Submitted',
-      FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(homework_question_id) REFERENCES homework_questions(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS homework_grades (
-      id TEXT PRIMARY KEY,
-      submission_id TEXT UNIQUE NOT NULL,
-      teacher_id TEXT NOT NULL,
-      stars INTEGER NOT NULL CHECK(stars BETWEEN 0 AND 5),
-      feedback TEXT,
-      graded_at TEXT NOT NULL,
-      FOREIGN KEY(submission_id) REFERENCES homework_submissions(id) ON DELETE CASCADE,
-      FOREIGN KEY(teacher_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS notifications (
-      id TEXT PRIMARY KEY,
-      user_id TEXT,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      type TEXT DEFAULT 'info',
-      read INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL
-    );
-  `);
-
-  try {
-    db.exec('ALTER TABLE users ADD COLUMN current_session_id TEXT;');
-  } catch {
-    // column already exists
-  }
+export function getDb() {
+  const client = getClient();
+  return {
+    async all<T = any>(sql: string, ...args: any[]): Promise<T[]> {
+      const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+      const res = await client.execute({ sql, args: flatArgs });
+      return res.rows as unknown as T[];
+    },
+    async get<T = any>(sql: string, ...args: any[]): Promise<T | null> {
+      const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+      const res = await client.execute({ sql, args: flatArgs });
+      return (res.rows[0] as unknown as T) || null;
+    },
+    async run(sql: string, ...args: any[]): Promise<{ rowsAffected: number; lastInsertRowid?: any }> {
+      const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+      const res = await client.execute({ sql, args: flatArgs });
+      return { rowsAffected: res.rowsAffected, lastInsertRowid: res.lastInsertRowid };
+    },
+    async exec(sql: string): Promise<void> {
+      await client.executeMultiple(sql);
+    },
+    prepare(sql: string) {
+      return {
+        all: async <T = any>(...args: any[]): Promise<T[]> => {
+          const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+          const res = await client.execute({ sql, args: flatArgs });
+          return res.rows as unknown as T[];
+        },
+        get: async <T = any>(...args: any[]): Promise<T | null> => {
+          const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+          const res = await client.execute({ sql, args: flatArgs });
+          return (res.rows[0] as unknown as T) || null;
+        },
+        run: async (...args: any[]) => {
+          const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+          const res = await client.execute({ sql, args: flatArgs });
+          return { rowsAffected: res.rowsAffected, lastInsertRowid: res.lastInsertRowid };
+        }
+      };
+    }
+  };
 }

@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   const db = getDb();
-  const submissions = db.prepare(`
+  const submissions = (await db.prepare(`
     SELECT 
       s.id,
       s.student_id,
@@ -34,7 +34,7 @@ export async function GET() {
     JOIN course_days d ON d.id = hq.day_id
     LEFT JOIN homework_grades g ON g.submission_id = s.id
     ORDER BY s.submitted_at DESC
-  `).all();
+  `).all()) as any[];
 
   return NextResponse.json({ submissions });
 }
@@ -58,13 +58,13 @@ export async function POST(req: Request) {
     const db = getDb();
 
     // Check submission exists
-    const sub = db.prepare(`
+    const sub = (await db.prepare(`
       SELECT s.*, hq.day_id, d.day_number 
       FROM homework_submissions s
       JOIN homework_questions hq ON hq.id = s.homework_question_id
       JOIN course_days d ON d.id = hq.day_id
       WHERE s.id = ?
-    `).get(submissionId) as any;
+    `).get(submissionId)) as any;
 
     if (!sub) {
       return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
@@ -73,37 +73,37 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
 
     // Upsert grade
-    const existingGrade = db.prepare('SELECT id FROM homework_grades WHERE submission_id = ?').get(submissionId) as any;
+    const existingGrade = (await db.prepare('SELECT id FROM homework_grades WHERE submission_id = ?').get(submissionId)) as any;
 
     if (existingGrade) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE homework_grades
         SET stars = ?, feedback = ?, teacher_id = ?, graded_at = ?
         WHERE id = ?
       `).run(starCount, feedback || '', user.id, now, existingGrade.id);
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO homework_grades (id, submission_id, teacher_id, stars, feedback, graded_at)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(crypto.randomUUID(), submissionId, user.id, starCount, feedback || '', now);
     }
 
     // Update submission status
-    db.prepare(`
+    await db.prepare(`
       UPDATE homework_submissions
       SET status = ?
       WHERE id = ?
     `).run(submissionStatus, submissionId);
 
     // Notify the student
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
       VALUES (?, ?, ?, ?, 'grade', 0, ?)
     `).run(
       crypto.randomUUID(),
       sub.student_id,
       'Homework Graded!',
-      `Prof. Alan Mitchell graded your Day ${sub.day_number} submission: ${'★'.repeat(starCount)}${'☆'.repeat(5 - starCount)}${feedback ? ` - "${feedback}"` : ''}`,
+      `${user.name} graded your Day ${sub.day_number} submission: ${'★'.repeat(starCount)}${'☆'.repeat(5 - starCount)}${feedback ? ` - "${feedback}"` : ''}`,
       now
     );
 

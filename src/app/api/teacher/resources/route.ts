@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const id = `res-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const now = new Date().toISOString();
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO resources (id, day_id, title, file_url, resource_type, uploaded_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(id, dayId, title, url, type, now);
@@ -49,7 +49,7 @@ export async function DELETE(req: Request) {
     }
 
     const db = getDb();
-    db.prepare('DELETE FROM resources WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM resources WHERE id = ?').run(id);
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

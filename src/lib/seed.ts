@@ -34,11 +34,11 @@ export const CURRICULUM_DAYS = [
   { day: 30, title: 'C Programming Revision + Mini Project', desc: 'Comprehensive review, building a Student Management System console application in C.' }
 ];
 
-export function seedDatabase(customDb?: any) {
+export async function seedDatabase(customDb?: any) {
   const db = customDb || getDb();
 
   // Check if already seeded
-  const userCountRow = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
+  const userCountRow = (await db.prepare('SELECT count(*) as count FROM users').get()) as { count: number } | null;
   if (userCountRow && userCountRow.count > 0) {
     return;
   }

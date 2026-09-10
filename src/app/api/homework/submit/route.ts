@@ -20,20 +20,20 @@ export async function POST(req: Request) {
     const db = getDb();
 
     // Check if question exists
-    const question = db.prepare('SELECT * FROM homework_questions WHERE id = ?').get(homeworkQuestionId) as any;
+    const question = (await db.prepare('SELECT * FROM homework_questions WHERE id = ?').get(homeworkQuestionId)) as any;
     if (!question) {
       return NextResponse.json({ error: 'Homework question not found' }, { status: 404 });
     }
 
     // Check if previously submitted and graded
-    const existingSub = db.prepare(`
+    const existingSub = (await db.prepare(`
       SELECT s.*, g.id as grade_id, g.stars
       FROM homework_submissions s
       LEFT JOIN homework_grades g ON g.submission_id = s.id
       WHERE s.student_id = ? AND s.homework_question_id = ?
       ORDER BY s.submitted_at DESC
       LIMIT 1
-    `).get(user.id, homeworkQuestionId) as any;
+    `).get(user.id, homeworkQuestionId)) as any;
 
     if (existingSub && existingSub.grade_id && existingSub.status === 'Graded') {
       return NextResponse.json({
@@ -55,22 +55,22 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
 
     if (existingSub) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE homework_submissions
         SET code = ?, output = ?, compilation_status = 'success', submitted_at = ?, status = 'Submitted'
         WHERE id = ?
       `).run(code, compileResult.output, now, existingSub.id);
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO homework_submissions (id, student_id, homework_question_id, code, output, compilation_status, submitted_at, status)
         VALUES (?, ?, ?, ?, ?, 'success', ?, 'Submitted')
       `).run(submissionId, user.id, homeworkQuestionId, code, compileResult.output, now);
     }
 
     // Also add teacher notification
-    const teacher = db.prepare("SELECT id FROM users WHERE role = 'teacher' LIMIT 1").get() as any;
+    const teacher = (await db.prepare("SELECT id FROM users WHERE role = 'teacher' LIMIT 1").get()) as any;
     if (teacher) {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO notifications (id, user_id, title, message, type, read, created_at)
         VALUES (?, ?, ?, ?, ?, 0, ?)
       `).run(

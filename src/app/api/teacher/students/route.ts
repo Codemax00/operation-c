@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   const db = getDb();
-  const students = db.prepare(`
+  const students = (await db.prepare(`
     SELECT 
       u.id,
       u.name,
@@ -32,7 +32,7 @@ export async function GET() {
     FROM users u
     WHERE u.role = 'student'
     ORDER BY u.created_at DESC
-  `).all();
+  `).all()) as any[];
 
   return NextResponse.json({ students });
 }
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const db = getDb();
 
     // Check uniqueness
-    const existing = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)').get(studentEmail, trimmedName);
+    const existing = await db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)').get(studentEmail, trimmedName);
     if (existing) {
       return NextResponse.json({ error: 'A student with this name or email already exists' }, { status: 409 });
     }
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     const passwordHash = hashPassword(password.trim());
     const now = new Date().toISOString();
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO users (id, name, email, password_hash, role, created_at)
       VALUES (?, ?, ?, ?, 'student', ?)
     `).run(newId, trimmedName, studentEmail, passwordHash, now);
@@ -106,7 +106,7 @@ export async function PATCH(req: Request) {
     }
 
     const db = getDb();
-    const student = db.prepare("SELECT id, name FROM users WHERE id = ? AND role = 'student'").get(studentId) as any;
+    const student = (await db.prepare("SELECT id, name FROM users WHERE id = ? AND role = 'student'").get(studentId)) as any;
 
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
@@ -115,7 +115,7 @@ export async function PATCH(req: Request) {
     const passwordHash = hashPassword(newPassword.trim());
 
     // Update password and clear current_session_id so any active session is logged out
-    db.prepare(`
+    await db.prepare(`
       UPDATE users 
       SET password_hash = ?, current_session_id = NULL 
       WHERE id = ?
@@ -146,7 +146,7 @@ export async function DELETE(req: Request) {
     }
 
     const db = getDb();
-    db.prepare("DELETE FROM users WHERE id = ? AND role = 'student'").run(id);
+    await db.prepare("DELETE FROM users WHERE id = ? AND role = 'student'").run(id);
 
     return NextResponse.json({ success: true, message: 'Student removed successfully' });
   } catch (err: unknown) {

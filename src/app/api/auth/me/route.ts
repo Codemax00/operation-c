@@ -22,27 +22,27 @@ export async function GET() {
   };
 
   if (user.role === 'student') {
-    const lRow = db.prepare('SELECT count(*) as count FROM lesson_progress WHERE student_id = ? AND completed = 1').get(user.id) as { count: number };
-    const pRow = db.prepare('SELECT count(*) as count FROM practice_progress WHERE student_id = ? AND completed = 1').get(user.id) as { count: number };
+    const lRow = (await db.prepare('SELECT count(*) as count FROM lesson_progress WHERE student_id = ? AND completed = 1').get(user.id)) as { count: number } | null;
+    const pRow = (await db.prepare('SELECT count(*) as count FROM practice_progress WHERE student_id = ? AND completed = 1').get(user.id)) as { count: number } | null;
     
     // Graded homework count
-    const hRow = db.prepare(`
+    const hRow = (await db.prepare(`
       SELECT count(DISTINCT s.homework_question_id) as count
       FROM homework_submissions s
       JOIN homework_grades g ON s.id = g.submission_id
       WHERE s.student_id = ? AND g.stars > 0
-    `).get(user.id) as { count: number };
+    `).get(user.id)) as { count: number } | null;
 
     // Total published homework questions
-    const totalHwRow = db.prepare('SELECT count(*) as count FROM homework_questions WHERE published = 1').get() as { count: number };
+    const totalHwRow = (await db.prepare('SELECT count(*) as count FROM homework_questions WHERE published = 1').get()) as { count: number } | null;
 
     // Average rating
-    const ratingRow = db.prepare(`
+    const ratingRow = (await db.prepare(`
       SELECT AVG(g.stars) as avg_stars
       FROM homework_submissions s
       JOIN homework_grades g ON s.id = g.submission_id
       WHERE s.student_id = ?
-    `).get(user.id) as { avg_stars: number | null };
+    `).get(user.id)) as { avg_stars: number | null } | null;
 
     const lessonsCompleted = lRow ? lRow.count : 0;
     const practiceCompleted = pRow ? pRow.count : 0;

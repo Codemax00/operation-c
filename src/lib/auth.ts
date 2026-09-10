@@ -44,7 +44,7 @@ export async function getCurrentUser(): Promise<UserSession | null> {
   // If user has logged in from another device, current_session_id will be different!
   if (decoded.sessionId) {
     const db = getDb();
-    const userRow = db.prepare('SELECT current_session_id FROM users WHERE id = ?').get(decoded.id) as { current_session_id?: string } | undefined;
+    const userRow = (await db.prepare('SELECT current_session_id FROM users WHERE id = ?').get(decoded.id)) as { current_session_id?: string } | null;
     if (!userRow || userRow.current_session_id !== decoded.sessionId) {
       return null;
     }

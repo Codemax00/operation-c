@@ -16,15 +16,15 @@ export async function POST(req: Request) {
     }
 
     const db = getDb();
-    const existing = db.prepare('SELECT id, completed FROM lesson_progress WHERE student_id = ? AND day_id = ?').get(user.id, dayId) as any;
+    const existing = (await db.prepare('SELECT id, completed FROM lesson_progress WHERE student_id = ? AND day_id = ?').get(user.id, dayId)) as any;
 
     const newCompleted = completed !== undefined ? (completed ? 1 : 0) : (existing && existing.completed === 1 ? 0 : 1);
 
     if (existing) {
-      db.prepare('UPDATE lesson_progress SET completed = ?, completed_at = ? WHERE id = ?')
+      await db.prepare('UPDATE lesson_progress SET completed = ?, completed_at = ? WHERE id = ?')
         .run(newCompleted, newCompleted === 1 ? new Date().toISOString() : null, existing.id);
     } else {
-      db.prepare('INSERT INTO lesson_progress (id, student_id, day_id, completed, completed_at) VALUES (?, ?, ?, ?, ?)')
+      await db.prepare('INSERT INTO lesson_progress (id, student_id, day_id, completed, completed_at) VALUES (?, ?, ?, ?, ?)')
         .run(crypto.randomUUID(), user.id, dayId, newCompleted, newCompleted === 1 ? new Date().toISOString() : null);
     }
 

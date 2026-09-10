@@ -121,8 +121,10 @@ export default function TeacherDashboardPage() {
   const [isSendingNotice, setIsSendingNotice] = useState(false);
   const [noticeFeedback, setNoticeFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+    }
     try {
       const [subRes, daysRes, studRes] = await Promise.all([
         fetch('/api/teacher/submissions'),
@@ -147,17 +149,21 @@ export default function TeacherDashboardPage() {
     } catch (err) {
       console.error('Failed to load teacher data', err);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+      }
     }
   };
 
+  const isTeacher = user?.role === 'teacher';
+
   useEffect(() => {
-    if (user?.role === 'teacher') {
-      loadData();
+    if (isTeacher) {
+      loadData(true);
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [isTeacher, user?.id]);
 
   // Handle Teacher Admin Login
   const handleTeacherLogin = async (e: React.FormEvent) => {

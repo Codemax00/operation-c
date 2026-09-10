@@ -78,8 +78,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/me');
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
-        if (data.stats) setStats(data.stats);
+        setUser((prev) => {
+          if (
+            prev &&
+            prev.id === data.user?.id &&
+            prev.name === data.user?.name &&
+            prev.email === data.user?.email &&
+            prev.role === data.user?.role
+          ) {
+            return prev;
+          }
+          return data.user;
+        });
+
+        if (data.stats) {
+          setStats((prev) => {
+            if (JSON.stringify(prev) === JSON.stringify(data.stats)) {
+              return prev;
+            }
+            return data.stats;
+          });
+        }
       } else {
         // If previously logged in and now rejected, another device logged in!
         setUser(prevUser => {
@@ -101,7 +120,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/notifications');
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
+        const incoming = data.notifications || [];
+        setNotifications((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(incoming)) {
+            return prev;
+          }
+          return incoming;
+        });
       }
     } catch {
       // Ignore notification fetch error

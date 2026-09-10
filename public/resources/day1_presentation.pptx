@@ -1,0 +1,17 @@
+# Day 1: Introduction to C Programming - Presentation Slides
+
+Slide 1: Welcome to C Programming Academy
+- Instructor: Prof. Alan Mitchell
+- Target: 30 Days of Hands-on Code Mastery
+
+Slide 2: Why Learn C?
+- Hardware-level performance
+- Memory management control
+- Operating Systems (Linux, Windows kernel) and Embedded Systems foundation
+
+Slide 3: Structure of a C Program
+- #include <stdio.h>
+- int main() { ... return 0; }
+
+Slide 4: Your First Task
+- Complete Day 1 Homework in the online compiler!

@@ -112,14 +112,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
 
-  // Periodic heartbeat every 8 seconds to enforce single active device
+  // Periodic heartbeat every 6 seconds to enforce single active device and fetch new notifications
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(() => {
       fetchCurrentUser();
-    }, 8000);
+      fetchNotifications();
+    }, 6000);
     return () => clearInterval(interval);
-  }, [user, fetchCurrentUser]);
+  }, [user, fetchCurrentUser, fetchNotifications]);
 
   useEffect(() => {
     if (user) {

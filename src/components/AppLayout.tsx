@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -33,6 +33,73 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
+
+  // Close notification popover when clicking anywhere outside or on route change
+  useEffect(() => {
+    setShowNotifMenu(false);
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  const renderNotificationDropdown = () => (
+    <>
+      {/* Invisible backdrop to dismiss notifications when tapping anywhere on screen */}
+      <div
+        className="fixed inset-0 z-40"
+        onClick={() => setShowNotifMenu(false)}
+        onTouchStart={() => setShowNotifMenu(false)}
+      />
+      <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+          <div className="flex items-center gap-1.5">
+            <Bell className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</span>
+          </div>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => markNotificationRead()}
+              className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+            >
+              Mark all read
+            </button>
+          )}
+        </div>
+        <div className="max-h-72 overflow-y-auto space-y-2">
+          {notifications.length === 0 ? (
+            <div className="py-6 text-center text-slate-400">
+              <Bell className="w-6 h-6 mx-auto mb-1 opacity-30" />
+              <p className="text-xs font-medium">No notifications yet</p>
+            </div>
+          ) : (
+            notifications.map((notif) => (
+              <div
+                key={notif.id}
+                onClick={() => markNotificationRead(notif.id)}
+                className={`p-3 rounded-xl text-xs cursor-pointer transition-all ${
+                  notif.read === 0
+                    ? 'bg-indigo-50/80 border border-indigo-100 hover:bg-indigo-100/60'
+                    : 'bg-slate-50 border border-slate-100 hover:bg-slate-100/80'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-slate-800 line-clamp-1">{notif.title}</p>
+                  {notif.type === 'urgent' && (
+                    <span className="text-[9px] font-extrabold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">Urgent</span>
+                  )}
+                  {notif.type === 'homework' && (
+                    <span className="text-[9px] font-extrabold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">Homework</span>
+                  )}
+                </div>
+                <p className="text-slate-600 mt-1 leading-relaxed text-[11px]">{notif.message}</p>
+                <span className="text-[10px] text-slate-400 mt-1.5 block">
+                  {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(notif.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  );
 
   const navItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -67,22 +134,31 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
         </div>
 
-        {/* Notifications & User */}
+        {/* Notifications & User on Mobile */}
         <div className="flex items-center gap-2">
           <div className="relative">
             <button
               onClick={() => setShowNotifMenu(!showNotifMenu)}
-              className="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+              className="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-600 rounded-full animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-indigo-600 rounded-full animate-pulse ring-2 ring-white" />
               )}
             </button>
+
+            {showNotifMenu && renderNotificationDropdown()}
           </div>
-          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold text-xs border border-indigo-200">
+
+          <button
+            onClick={() => router.push('/profile')}
+            className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs border border-indigo-200 cursor-pointer active:scale-95 transition-transform"
+            title="Open Profile"
+            aria-label="Open Profile"
+          >
             {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-          </div>
+          </button>
         </div>
       </header>
 
@@ -283,12 +359,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Notifications Menu */}
+            {/* Notifications Menu on Desktop */}
             <div className="relative">
               <button
                 onClick={() => setShowNotifMenu(!showNotifMenu)}
-                className="relative p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+                className="relative p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
                 title="Notifications"
+                aria-label="Notifications"
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -298,54 +375,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 )}
               </button>
 
-              {showNotifMenu && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-3 z-50">
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</span>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={() => markNotificationRead()}
-                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium"
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-                  <div className="max-h-64 overflow-y-auto space-y-2">
-                    {notifications.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-3 text-center">No notifications yet</p>
-                    ) : (
-                      notifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          onClick={() => markNotificationRead(notif.id)}
-                          className={`p-2.5 rounded-xl text-xs cursor-pointer transition-colors ${
-                            notif.read === 0 ? 'bg-indigo-50/70 border border-indigo-100' : 'bg-slate-50 hover:bg-slate-100/70'
-                          }`}
-                        >
-                          <p className="font-semibold text-slate-800">{notif.title}</p>
-                          <p className="text-slate-600 mt-0.5 line-clamp-2">{notif.message}</p>
-                          <span className="text-[10px] text-slate-400 mt-1 block">
-                            {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
+              {showNotifMenu && renderNotificationDropdown()}
             </div>
 
-            {/* User Quick Info */}
-            <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+            {/* User Quick Info on Desktop */}
+            <button
+              onClick={() => router.push('/profile')}
+              className="flex items-center gap-3 pl-3 border-l border-slate-200 hover:opacity-85 transition-opacity cursor-pointer text-left group"
+              title="Open Profile"
+            >
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs group-hover:scale-105 transition-transform">
                 {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="text-left hidden lg:block">
-                <p className="text-xs font-semibold text-slate-800">{user?.name || 'Guest'}</p>
+                <p className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">{user?.name || 'Guest'}</p>
                 <p className="text-[11px] text-slate-400 capitalize">{user?.role || 'student'}</p>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
